@@ -11,7 +11,7 @@ import { AuthContextProvider } from "./src/contexts/AuthContext";
 import { Loading } from "./src/components/Loading";
 
 import { THEME } from "./src/styles/theme";
-import { Pools } from "./src/screens/Pools";
+import { Routes } from "./src/routes";
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -29,7 +29,7 @@ export default function App() {
           translucent
         />
 
-        {fontsLoaded ? <Pools /> : <Loading />}
+        {fontsLoaded ? <Routes /> : <Loading />}
       </AuthContextProvider>
     </NativeBaseProvider>
   );
