@@ -3,6 +3,11 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate } from "../plugins/authenticate";
 
+interface Guess {
+  firstTeamPoints: number | null;
+  secondTeamPoints: number | null;
+}
+
 export async function guessRoutes(fastify: FastifyInstance) {
   fastify.get("/guesses/count", async () => {
     const count = await prisma.guess.count();
@@ -31,6 +36,18 @@ export async function guessRoutes(fastify: FastifyInstance) {
       const { firstTeamPoints, secondTeamPoints } = createGuessBody.parse(
         request.body
       );
+
+      const game = await prisma.game.findUnique({
+        where: {
+          id: gameId,
+        },
+      });
+
+      if (!game) {
+        return reply.status(400).send({
+          message: "Game doesn't exist",
+        });
+      }
 
       const participant = await prisma.participant.findUnique({
         where: {
@@ -62,12 +79,6 @@ export async function guessRoutes(fastify: FastifyInstance) {
         });
       }
 
-      const game = await prisma.game.findUnique({
-        where: {
-          id: gameId,
-        },
-      });
-
       if (game.date < new Date()) {
         return reply.status(400).send({
           message: "You cannot create a guess after game ended",
@@ -84,6 +95,53 @@ export async function guessRoutes(fastify: FastifyInstance) {
       });
 
       return reply.status(201).send();
+    }
+  );
+
+  fastify.get(
+    "/pools/:poolId/games/:gameId/guesses",
+    {
+      onRequest: [authenticate],
+    },
+    async (request, reply) => {
+      const createGuessParams = z.object({
+        poolId: z.string(),
+        gameId: z.string(),
+      });
+
+      const { poolId, gameId } = createGuessParams.parse(request.params);
+
+      const participant = await prisma.participant.findUnique({
+        where: {
+          userId_poolId: {
+            poolId,
+            userId: request.user.sub,
+          },
+        },
+      });
+
+      let guess: Guess;
+      if (!participant) {
+        guess = {
+          firstTeamPoints: null,
+          secondTeamPoints: null,
+        };
+      } else {
+        guess = (await prisma.guess.findUnique({
+          where: {
+            participantId_gameId: {
+              gameId,
+              participantId: participant.id,
+            },
+          },
+          select: {
+            firstTeamPoints: true,
+            secondTeamPoints: true,
+          },
+        })) as Guess;
+      }
+
+      return guess;
     }
   );
 }
